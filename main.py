@@ -1,5 +1,4 @@
 from tagging import auto_tag_recipes, tag_recipe_by_id
-from fastapi import FastAPI
 
 
 if __name__ == "__main__":
