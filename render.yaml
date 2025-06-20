@@ -1,0 +1,6 @@
+services:
+  - type: worker
+    name: recipe-tagger-worker
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python tagging/auto_tagger.py
