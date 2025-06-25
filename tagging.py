@@ -3,6 +3,7 @@ import socket
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text, event
 from sqlalchemy.pool import NullPool
+from collections import defaultdict
 
 orig_getaddrinfo = socket.getaddrinfo
 def getaddrinfo_ipv4_only(*args, **kwargs):
@@ -19,6 +20,7 @@ engine = create_engine(DATABASE_URL, poolclass=NullPool)
 def set_search_path(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
     cursor.execute(f'SET search_path TO {DB_NAME}')
+    cursor.execute("SET statement_timeout TO 900000")
     cursor.close()
 engine = create_engine(DATABASE_URL)
 
@@ -230,8 +232,6 @@ diet_keywords = {
     # ],
 
 
-
-
 region_keywords = {
     "Southern": ['southern', 'fried chicken', 'biscuits', 'gravy', 'grits', 'shrimp and grits', 'collard greens', 'macaroni and cheese', 'cornbread', 'fried green tomatoes', 'pecan pie', 'sweet potato pie', 'banana pudding', 'peach cobbler', 'sweet tea', 'pimento cheese', 'deviled eggs', 'hushpuppies', 'catfish', 'country ham', 'pulled pork', 'lowcountry', 'soul food', 'appalachian', 'cajun', 'creole'],
     "Midwestern": ['midwestern', 'casserole', 'hotdish', 'pot roast', 'pork tenderloin sandwich', 'loose meat sandwich', 'jucy lucy', 'bratwurst', 'cheese curds', 'cincinnati chili', 'chicago style hot dog', 'deep dish pizza', 'corn on the cob', 'puppy chow', 'buckeye candy', 'gooey butter cake', 'fruit pie', 'ambrosia salad', 'jell-o salad', 'ranch dressing', 'beer cheese soup'],
@@ -252,116 +252,72 @@ tags_to_insert = {
 
 
 # insert tags into the database
-with engine.connect() as conn:
-    for tag_type, tag_names in tags_to_insert.items():
-        for name in tag_names:
+def bulk_insert_tags():
+    with engine.begin() as conn:
+        inserts = []
 
-            result = conn.execute(text(f"SELECT 1 FROM {DB_NAME}.tags WHERE tag_name = :name AND tag_type = :type"),
-                                  {"name": name, "type": tag_type})
-            if not result.first():
-                conn.execute(text(f"INSERT INTO {DB_NAME}.tags (tag_name, tag_type) VALUES (:name, :type)"),
-                             {"name": name, "type": tag_type})
-    conn.commit()
-print("Tags inserted into tags table.")
+        for tag_type, tag_names in tags_to_insert.items():
+            for name in tag_names:
+                inserts.append({"name": name, "type": tag_type})
+
+        if inserts:
+            conn.execute(
+                text(f"""
+                    INSERT INTO {DB_NAME}.tags (tag_name, tag_type)
+                    VALUES (:name, :type)
+                    ON CONFLICT DO NOTHING
+                """),
+                inserts
+            )
+
+    print("Tags inserted into tags table.")
+
 
 # insert keywords into tag_keywords table
-with engine.begin() as conn:
-    # holidays
-    for tag_name, keywords in holiday_keywords.items():
+def get_all_tag_ids(conn):
+    tag_ids = conn.execute(text(f"SELECT tag_id, tag_name, tag_type FROM {DB_NAME}.tags")).mappings()
+    tag_lookup = defaultdict(dict)
+    for row in tag_ids:
+        tag_lookup[row["tag_type"]][row["tag_name"]] = row["tag_id"]
+    return tag_lookup
 
-        result = conn.execute(text(f"""
-            SELECT tag_id FROM {DB_NAME}.tags WHERE tag_name = :name AND tag_type = 'holiday'
-        """), {"name": tag_name}).fetchone()
-        
-        if not result:
-                print(f"Tag '{tag_name}' not found in tags table.")
-                continue
 
-        tag_id = result[0]
+def bulk_insert_keywords():
+    print("Inserting tags into tags table...")
+    bulk_insert_tags()
+    print("Inserting keywords into tag_keywords...")
+    with engine.begin() as conn:
+        tag_lookup = get_all_tag_ids(conn)
 
-        for keyword in keywords:
-            exists = conn.execute(text(f"""
-                SELECT 1 FROM {DB_NAME}.tag_keywords WHERE tag_id = :tag_id AND keyword = :keyword
-            """), {"tag_id": tag_id, "keyword": keyword}).fetchone()
+        inserts = []
 
-            if not exists:
-                conn.execute(text(f"""
-                    INSERT INTO {DB_NAME}.tag_keywords (tag_id, keyword) VALUES (:tag_id, :keyword)
-                """), {"tag_id": tag_id, "keyword": keyword})
+        for tag_type, tag_dict in [
+            ("holiday", holiday_keywords),
+            ("cuisine", cuisine_keywords),
+            ("diet", diet_keywords),
+            ("region", region_keywords),
+        ]:
+            for tag_name, keywords in tag_dict.items():
+                tag_id = tag_lookup.get(tag_type, {}).get(tag_name)
+                if not tag_id:
+                    print(f"Tag '{tag_name}' with type '{tag_type}' not found in tags table.")
+                    continue
 
-    # cuisines
-    for tag_name, keywords in cuisine_keywords.items():
+                for keyword in keywords:
+                    inserts.append({"tag_id": tag_id, "keyword": keyword})
 
-        result = conn.execute(text(f"""
-            SELECT tag_id FROM {DB_NAME}.tags WHERE tag_name = :name AND tag_type = 'cuisine'
-        """), {"name": tag_name}).fetchone()
+        if inserts:
+            conn.execute(
+                text(f"""
+                    INSERT INTO {DB_NAME}.tag_keywords (tag_id, keyword)
+                    VALUES (:tag_id, :keyword)
+                    ON CONFLICT DO NOTHING
+                """),
+                inserts
+            )
 
-        if not result:
-            print(f"Tag '{tag_name}' not found in tags table.")
-            continue
+    print("Keywords inserted into tag_keywords.")
 
-        tag_id = result[0]
-
-        for keyword in keywords:
-
-            exists = conn.execute(text(f"""
-                SELECT 1 FROM {DB_NAME}.tag_keywords WHERE tag_id = :tag_id AND keyword = :keyword
-            """), {"tag_id": tag_id, "keyword": keyword}).fetchone()
-
-            if not exists:
-                conn.execute(text(f"""
-                    INSERT INTO {DB_NAME}.tag_keywords (tag_id, keyword) VALUES (:tag_id, :keyword)
-                """), {"tag_id": tag_id, "keyword": keyword})
-
-    # diets
-    for tag_name, keywords in diet_keywords.items():
-
-        result = conn.execute(text(f"""
-            SELECT tag_id FROM {DB_NAME}.tags WHERE tag_name = :name AND tag_type = 'diet'
-        """), {"name": tag_name}).fetchone()
-
-        if not result:
-            print(f"Tag '{tag_name}' not found in tags table.")
-            continue
-
-        tag_id = result[0]
-
-        for keyword in keywords:
-
-            exists = conn.execute(text(f"""
-                SELECT 1 FROM {DB_NAME}.tag_keywords WHERE tag_id = :tag_id AND keyword = :keyword
-            """), {"tag_id": tag_id, "keyword": keyword}).fetchone()
-
-            if not exists:
-                conn.execute(text(f"""
-                    INSERT INTO {DB_NAME}.tag_keywords (tag_id, keyword) VALUES (:tag_id, :keyword)
-                """), {"tag_id": tag_id, "keyword": keyword})
-
-    # regions
-    for tag_name, keywords in region_keywords.items():
-
-        result = conn.execute(text(f"""
-            SELECT tag_id FROM {DB_NAME}.tags WHERE tag_name = :name AND tag_type = 'region'
-        """), {"name": tag_name}).fetchone()
-
-        if not result:
-            print(f"Tag '{tag_name}' not found in tags table.")
-            continue
-
-        tag_id = result[0]
-
-        for keyword in keywords:
-
-            exists = conn.execute(text(f"""
-                SELECT 1 FROM {DB_NAME}.tag_keywords WHERE tag_id = :tag_id AND keyword = :keyword
-            """), {"tag_id": tag_id, "keyword": keyword}).fetchone()
-
-            if not exists:
-                conn.execute(text(f"""
-                    INSERT INTO {DB_NAME}.tag_keywords (tag_id, keyword) VALUES (:tag_id, :keyword)
-                """), {"tag_id": tag_id, "keyword": keyword})
-        
-print("Keywords inserted into tag_keywords.")
 
 
 def fetch_all_tag_keywords(conn):
@@ -395,16 +351,34 @@ def tag_recipe(conn, recipe_id, tag_id):
     
 
 def auto_tag_recipes():
+    print("Auto-tagging recipes based on keywords...")
     with engine.begin() as conn:
         tag_map = fetch_all_tag_keywords(conn)
         recipes = fetch_all_recipes(conn)
+
+        bulk_insert_list = []
 
         for recipe in recipes:
             content = f"{recipe['recipe_name']} {recipe['instructions']}".lower()
             for tag_id, keywords in tag_map.items():
                 if any(kw in content for kw in keywords):
-                    tag_recipe(conn, recipe['recipe_id'], tag_id)
+                    bulk_insert_list.append({
+                        "rid": recipe["recipe_id"],
+                        "tid": tag_id
+                    })
+
+        if bulk_insert_list:
+            conn.execute(
+                text(f"""
+                    INSERT INTO {DB_NAME}.recipe_tags_mapping (recipe_id, tag_id)
+                    VALUES (:rid, :tid)
+                    ON CONFLICT DO NOTHING
+                """),
+                bulk_insert_list
+            )
+
     print("Recipes auto-tagged based on keywords.")
+
 
 def tag_recipe_by_id(recipe_id):
     with engine.begin() as conn:

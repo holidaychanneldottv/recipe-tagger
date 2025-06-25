@@ -1,7 +1,6 @@
-from tagging import auto_tag_recipes, tag_recipe_by_id
+from tagging import auto_tag_recipes,bulk_insert_keywords
 
 
 if __name__ == "__main__":
-    print("Starting recipe tagging...")
-    # tag all recipes based on keywords
+    bulk_insert_keywords()
     auto_tag_recipes()
