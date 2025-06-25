@@ -10,7 +10,7 @@ def read_root():
 @app.get("/upsert-keywords")
 def upsert_keywords(background_tasks: BackgroundTasks):
     background_tasks.add_task(bulk_insert_keywords)
-    return {"status": "Keywords upserted successfully"}
+    return {"status": "Keyword insertion started in the background"}
 
 @app.get("/tag-all-recipes")
 def tag_recipes(background_tasks: BackgroundTasks):
