@@ -1,7 +1,25 @@
 import os
-from sqlalchemy import create_engine, text
+import socket
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, text, event
+from sqlalchemy.pool import NullPool
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+orig_getaddrinfo = socket.getaddrinfo
+def getaddrinfo_ipv4_only(*args, **kwargs):
+    return [info for info in orig_getaddrinfo(*args, **kwargs) if info[0] == socket.AF_INET]
+socket.getaddrinfo = getaddrinfo_ipv4_only
+
+load_dotenv()
+
+DATABASE_URL = os.getenv("POSTGRES_URL") 
+DB_NAME = os.getenv("DB_NAME")
+engine = create_engine(DATABASE_URL, poolclass=NullPool)
+
+@event.listens_for(engine, "connect")
+def set_search_path(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute(f'SET search_path TO {DB_NAME}')
+    cursor.close()
 engine = create_engine(DATABASE_URL)
 
 # Tag - tag key words mapping
@@ -238,20 +256,21 @@ with engine.connect() as conn:
     for tag_type, tag_names in tags_to_insert.items():
         for name in tag_names:
 
-            result = conn.execute(text("SELECT 1 FROM tags WHERE tag_name = :name AND tag_type = :type"),
+            result = conn.execute(text(f"SELECT 1 FROM {DB_NAME}.tags WHERE tag_name = :name AND tag_type = :type"),
                                   {"name": name, "type": tag_type})
             if not result.first():
-                conn.execute(text("INSERT INTO tags (tag_name, tag_type) VALUES (:name, :type)"),
+                conn.execute(text(f"INSERT INTO {DB_NAME}.tags (tag_name, tag_type) VALUES (:name, :type)"),
                              {"name": name, "type": tag_type})
     conn.commit()
+print("Tags inserted into tags table.")
 
 # insert keywords into tag_keywords table
 with engine.begin() as conn:
     # holidays
     for tag_name, keywords in holiday_keywords.items():
-        
-        result = conn.execute(text("""
-            SELECT tag_id FROM tags WHERE tag_name = :name AND tag_type = 'holiday'
+
+        result = conn.execute(text(f"""
+            SELECT tag_id FROM {DB_NAME}.tags WHERE tag_name = :name AND tag_type = 'holiday'
         """), {"name": tag_name}).fetchone()
         
         if not result:
@@ -261,21 +280,20 @@ with engine.begin() as conn:
         tag_id = result[0]
 
         for keyword in keywords:
-            
-            exists = conn.execute(text("""
-                SELECT 1 FROM tag_keywords WHERE tag_id = :tag_id AND keyword = :keyword
+            exists = conn.execute(text(f"""
+                SELECT 1 FROM {DB_NAME}.tag_keywords WHERE tag_id = :tag_id AND keyword = :keyword
             """), {"tag_id": tag_id, "keyword": keyword}).fetchone()
 
             if not exists:
-                conn.execute(text("""
-                    INSERT INTO tag_keywords (tag_id, keyword) VALUES (:tag_id, :keyword)
+                conn.execute(text(f"""
+                    INSERT INTO {DB_NAME}.tag_keywords (tag_id, keyword) VALUES (:tag_id, :keyword)
                 """), {"tag_id": tag_id, "keyword": keyword})
 
     # cuisines
     for tag_name, keywords in cuisine_keywords.items():
 
-        result = conn.execute(text("""
-            SELECT tag_id FROM tags WHERE tag_name = :name AND tag_type = 'cuisine'
+        result = conn.execute(text(f"""
+            SELECT tag_id FROM {DB_NAME}.tags WHERE tag_name = :name AND tag_type = 'cuisine'
         """), {"name": tag_name}).fetchone()
 
         if not result:
@@ -286,20 +304,20 @@ with engine.begin() as conn:
 
         for keyword in keywords:
 
-            exists = conn.execute(text("""
-                SELECT 1 FROM tag_keywords WHERE tag_id = :tag_id AND keyword = :keyword
+            exists = conn.execute(text(f"""
+                SELECT 1 FROM {DB_NAME}.tag_keywords WHERE tag_id = :tag_id AND keyword = :keyword
             """), {"tag_id": tag_id, "keyword": keyword}).fetchone()
 
             if not exists:
-                conn.execute(text("""
-                    INSERT INTO tag_keywords (tag_id, keyword) VALUES (:tag_id, :keyword)
+                conn.execute(text(f"""
+                    INSERT INTO {DB_NAME}.tag_keywords (tag_id, keyword) VALUES (:tag_id, :keyword)
                 """), {"tag_id": tag_id, "keyword": keyword})
 
     # diets
     for tag_name, keywords in diet_keywords.items():
 
-        result = conn.execute(text("""
-            SELECT tag_id FROM tags WHERE tag_name = :name AND tag_type = 'diet'
+        result = conn.execute(text(f"""
+            SELECT tag_id FROM {DB_NAME}.tags WHERE tag_name = :name AND tag_type = 'diet'
         """), {"name": tag_name}).fetchone()
 
         if not result:
@@ -310,20 +328,20 @@ with engine.begin() as conn:
 
         for keyword in keywords:
 
-            exists = conn.execute(text("""
-                SELECT 1 FROM tag_keywords WHERE tag_id = :tag_id AND keyword = :keyword
+            exists = conn.execute(text(f"""
+                SELECT 1 FROM {DB_NAME}.tag_keywords WHERE tag_id = :tag_id AND keyword = :keyword
             """), {"tag_id": tag_id, "keyword": keyword}).fetchone()
 
             if not exists:
-                conn.execute(text("""
-                    INSERT INTO tag_keywords (tag_id, keyword) VALUES (:tag_id, :keyword)
+                conn.execute(text(f"""
+                    INSERT INTO {DB_NAME}.tag_keywords (tag_id, keyword) VALUES (:tag_id, :keyword)
                 """), {"tag_id": tag_id, "keyword": keyword})
 
     # regions
     for tag_name, keywords in region_keywords.items():
 
-        result = conn.execute(text("""
-            SELECT tag_id FROM tags WHERE tag_name = :name AND tag_type = 'region'
+        result = conn.execute(text(f"""
+            SELECT tag_id FROM {DB_NAME}.tags WHERE tag_name = :name AND tag_type = 'region'
         """), {"name": tag_name}).fetchone()
 
         if not result:
@@ -334,21 +352,21 @@ with engine.begin() as conn:
 
         for keyword in keywords:
 
-            exists = conn.execute(text("""
-                SELECT 1 FROM tag_keywords WHERE tag_id = :tag_id AND keyword = :keyword
+            exists = conn.execute(text(f"""
+                SELECT 1 FROM {DB_NAME}.tag_keywords WHERE tag_id = :tag_id AND keyword = :keyword
             """), {"tag_id": tag_id, "keyword": keyword}).fetchone()
 
             if not exists:
-                conn.execute(text("""
-                    INSERT INTO tag_keywords (tag_id, keyword) VALUES (:tag_id, :keyword)
+                conn.execute(text(f"""
+                    INSERT INTO {DB_NAME}.tag_keywords (tag_id, keyword) VALUES (:tag_id, :keyword)
                 """), {"tag_id": tag_id, "keyword": keyword})
         
 print("Keywords inserted into tag_keywords.")
 
 
 def fetch_all_tag_keywords(conn):
-    result = conn.execute(text("SELECT tag_id, keyword FROM tag_keywords")).mappings()
-    
+    result = conn.execute(text(f"SELECT tag_id, keyword FROM {DB_NAME}.tag_keywords")).mappings()
+
     tag_map = {}
     for row in result:
         tag_id = row['tag_id']
@@ -361,19 +379,20 @@ def fetch_all_tag_keywords(conn):
 
 
 def fetch_all_recipes(conn):
-    result = conn.execute(text("SELECT recipe_id, recipe_name, instructions FROM recipe")).mappings()
+    result = conn.execute(text(f"SELECT recipe_id, recipe_name, instructions FROM {DB_NAME}.recipe")).mappings()
     return result.fetchall()
 
 
 def tag_recipe(conn, recipe_id, tag_id):
-    exists = conn.execute(text("""
-        SELECT 1 FROM recipe_tags_mapping WHERE recipe_id = :rid AND tag_id = :tid
+    exists = conn.execute(text(f"""
+        SELECT 1 FROM {DB_NAME}.recipe_tags_mapping WHERE recipe_id = :rid AND tag_id = :tid
     """), {"rid": recipe_id, "tid": tag_id}).first()
     
     if not exists:
-        conn.execute(text("""
-            INSERT INTO recipe_tags_mapping (recipe_id, tag_id) VALUES (:rid, :tid)
+        conn.execute(text(f"""
+            INSERT INTO {DB_NAME}.recipe_tags_mapping (recipe_id, tag_id) VALUES (:rid, :tid)
         """), {"rid": recipe_id, "tid": tag_id})
+    
 
 def auto_tag_recipes():
     with engine.begin() as conn:
@@ -390,7 +409,7 @@ def auto_tag_recipes():
 def tag_recipe_by_id(recipe_id):
     with engine.begin() as conn:
         tag_map = fetch_all_tag_keywords(conn)
-        recipe = conn.execute(text("SELECT recipe_name, instructions FROM recipe WHERE recipe_id = :rid"),
+        recipe = conn.execute(text(f"SELECT recipe_name, instructions FROM {DB_NAME}.recipe WHERE recipe_id = :rid"),
                               {"rid": recipe_id}).fetchone()
         
         if not recipe:
