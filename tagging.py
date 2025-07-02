@@ -13,16 +13,17 @@ socket.getaddrinfo = getaddrinfo_ipv4_only
 load_dotenv()
 
 DATABASE_URL = os.getenv("POSTGRES_URL") 
+print("Database URL:", DATABASE_URL)
 DB_NAME = os.getenv("DB_NAME")
 engine = create_engine(DATABASE_URL, poolclass=NullPool)
 
-@event.listens_for(engine, "connect")
-def set_search_path(dbapi_connection, connection_record):
-    cursor = dbapi_connection.cursor()
-    cursor.execute(f'SET search_path TO {DB_NAME}')
-    cursor.execute("SET statement_timeout TO 900000")
-    cursor.close()
-engine = create_engine(DATABASE_URL)
+# @event.listens_for(engine, "connect")
+# def set_search_path(dbapi_connection, connection_record):
+#     cursor = dbapi_connection.cursor()
+#     cursor.execute(f'SET search_path TO {DB_NAME}')
+#     cursor.execute("SET statement_timeout TO 900000")
+#     cursor.close()
+# engine = create_engine(DATABASE_URL)
 
 # Tag - tag key words mapping
 
@@ -81,76 +82,6 @@ holiday_keywords = {
     "Tet": ['tet', 'tet nguyen dan', 'vietnamese new year', 'bánh chưng', 'bánh tét', 'sticky rice cake', 'mut', 'candied fruits', 'thit kho', 'braised pork', 'gio cha', 'vietnamese sausage', 'xoi', 'sticky rice', 'canh mang', 'bamboo soup', 'nem ran', 'fried spring rolls', 'pickled onions']
 }
 
-    # add-on holidays
-    # "Election Day": ["pizza", "chili", "easy meals", "casserole"],
-    # "Flag Day": ["red white and blue desserts", "flag cake", "patriotic cookies"],
-    # "Spring": ["asparagus", "lemon tart", "pea soup", "strawberries", "deviled eggs"],
-    # "Summer": ["bbq", "grilled vegetables", "watermelon", "ice cream", "lemonade"],
-    # "Winter": ["stew", "hot chocolate", "roast", "gingerbread", "soup"],
-    # "Fall/Autumn": ["pumpkin", "apple pie", "squash", "roasted vegetables", "cider"],
-    # "Back to School": ["lunchbox", "snacks", "granola bars", "mac and cheese", "sandwich"],
-    # "Graduation": ["sheet cake", "finger foods", "punch", "party food"],
-    # "Winter Holidays (generic)": ["cookies", "hot cocoa", "spiced cider", "mulled wine", "roast dinner"],
-    # "New Year's Eve": ["champagne", "shrimp cocktail", "finger food", "party snacks"],
-    # "Groundhog Day": [
-    #     "groundhog", "groundhog day", "february 2"
-    # ],
-    # "April Fools' Day": [
-    #     "april fools", "prank", "trick recipe", "joke dish"
-    # ],
-    # "Washington’s Birthday": [
-    #     "washington’s birthday", "president’s day", "cherry pie", "patriotic"
-    # ],
-    # "Boxing Day": [
-    #     "boxing day", "leftover", "british holiday", "post-christmas"
-    # ],
-    # "Bastille Day": [
-    #     "bastille day", "french national day", "quatorze juillet", "french revolution"
-    # ],
-    # "All Saints' Day": [
-    #     "all saints", "saints day", "november 1", "religious holiday"
-    # ],
-    # "Chinese Mid-Autumn Festival": [
-    #     "mid-autumn", "mooncake", "harvest moon", "chinese festival"
-    # ],
-    # "Día de los Muertos": [
-    #     "dia de los muertos", "day of the dead", "pan de muerto", "calaveras"
-    # ],
-    # "Guru Nanak Jayanti": [
-    #     "guru nanak", "gurpurab", "karah prasad", "sikh festival"
-    # ],
-    # "Vesak": [
-    #     "vesak", "buddha day", "buddha’s birthday", "buddhist holiday"
-    # ],
-    # "Pongal": [
-    #     "pongal", "sweet pongal", "ven pongal", "harvest festival", "tamil celebration"
-    # ],
-    # "Thaipusam": [
-    #     "thaipusam", "kavadi", "hindu festival", "murugan"
-    # ],
-    # "Songkran": [
-    #     "songkran", "thai new year", "water festival", "thai traditional food"
-    # ],
-    # "Ash Wednesday": [
-    #     "ash wednesday", "fasting", "lent", "no meat"
-    # ],
-    # "Good Friday": [
-    #     "good friday", "fish", "fasting", "easter weekend"
-    # ],
-    # "Chuseok": [
-    #     "chuseok", "korean thanksgiving", "songpyeon", "hangwa"
-    # ],
-    # "Loy Krathong": [
-    #     "loy krathong", "thai festival", "floating lanterns", "coconut desserts"
-    # ],
-    # "Feast of the Assumption": [
-    #     "feast of the assumption", "assumption day", "catholic feast", "august 15"
-    # ],
-    # "National Day of Prayer": [
-    #     "national day of prayer", "prayer breakfast", "interfaith", "religious unity"
-    # ]
-
-
 
 cuisine_keywords = {
     "American": ['american', 'comfort food', 'burger', 'cheeseburger', 'hot dog', 'fried chicken', 'mac and cheese', 'macaroni and cheese', 'meatloaf', 'pot roast', 'barbecue', 'bbq', 'ribs', 'pulled pork', 'brisket', 'buffalo wings', 'clam chowder', 'gumbo', 'jambalaya', 'chili', 'cornbread', 'biscuit', 'apple pie', 'brownie', 'chocolate chip cookie', 'pancakes', 'waffles', 'thanksgiving dinner', 'casserole', 'tex-mex', 'cajun', 'creole', 'soul food', 'diner food'],
@@ -192,12 +123,6 @@ cuisine_keywords = {
     "Barbecue": ['barbecue', 'bbq', 'barbeque', 'brisket', 'pulled pork', 'pork shoulder', 'ribs', 'baby back ribs', 'st. louis style ribs', 'burnt ends', 'smoked sausage', 'bbq chicken', 'texas barbecue', 'kansas city barbecue', 'carolina barbecue', 'memphis barbecue', 'vinegar sauce', 'mustard sauce', 'sweet sauce', 'dry rub', 'wet rub', 'smoker', 'low and slow'],
     "Appalachian": ['appalachian', 'cornbread', 'beans and cornbread', 'soup beans', 'pinto beans', 'biscuits and gravy', 'fried chicken', 'cathead biscuits', 'stack cake', 'ramps', 'morels', 'pawpaw', 'hickory nuts', 'venison', 'squirrel', 'dumplings', 'chow-chow', 'apple butter', 'molasses', 'shucky beans', 'leather britches', 'cast iron']
 }
-    # "Lebanese": [
-    #     "hummus", "tabbouleh", "kibbeh", "baba ghanoush", "fattoush", "manakish"
-    # ]
-    # "African": [
-    #     "injera", "jollof", "egusi", "piri piri", "suya", "fufu", "tagine", "bobotie", "berbere"
-    # ],
 
 
 
@@ -221,15 +146,6 @@ diet_keywords = {
     "Diabetic-Friendly": ['diabetic-friendly', 'diabetic diet', 'low glycemic', 'low gi', 'controlled carbohydrate', 'sugar-free', 'no added sugar', 'whole grains', 'lean protein', 'non-starchy vegetables', 'healthy fats', 'fiber-rich', 'portion control'],
     "Raw Food": ['raw food', 'raw diet', 'raw vegan', 'uncooked', 'unprocessed', 'no-bake', 'living foods', 'dehydrated', 'sprouted', 'cold-pressed', 'juicing', 'smoothie', 'zoodles', 'kelp noodles', 'raw nuts', 'raw seeds', 'fresh fruit', 'fresh vegetables']
 }
-    # "Whole30": [
-    #     "whole30", "whole foods only", "no grains", "no sugar", "no legumes", "compliant", "ghee"
-    # ],
-    # "Flexitarian": [
-    #     "flexitarian", "mostly vegetarian", "plant-rich", "meat occasionally", "semi-vegetarian"
-    # ],
-    # "Clean Eating": [
-    #     "clean eating", "whole food", "minimally processed", "natural", "unprocessed", "organic"
-    # ],
 
 
 region_keywords = {
@@ -242,12 +158,21 @@ region_keywords = {
     "North": ['north', 'upper midwest', 'great lakes', 'fish fry', 'walleye', 'perch', 'trout', 'smoked fish', 'wild rice', 'wild rice soup', 'pasties', 'bratwurst', 'kielbasa', 'cheese curds', 'beer cheese soup', 'hotdish', 'lefse', 'krumkake', 'dane county farmers market', 'door county', 'cherry pie', 'venison']
 }
 
+course_keywords = {
+    "Appetizer": ['appetizer', 'starter', 'snack', 'finger food', 'hors d\'oeuvre', 'amuse-bouche', 'canapé', 'nibbles', 'small bites', 'first course', 'pre-dinner', 'munchies', 'tidbits', 'dip', 'spread', 'bruschetta', 'crostini', 'tapas', 'meze', 'antipasto', 'charcuterie board', 'cheese board', 'skewer', 'pinwheel', 'puff pastry', 'spring roll', 'egg roll', 'samosa', 'pakora', 'dumpling', 'gyoza', 'potsticker', 'quesadilla', 'taquito', 'deviled eggs', 'stuffed mushrooms', 'shrimp cocktail', 'wings', 'sliders', 'nachos', 'jalapeño poppers', 'mozzarella sticks', 'fritter', 'relish tray', 'crudités', 'shareable', 'party food', 'bite-sized', 'small plate', 'pâté'],
+    "Main Course": ['main course', 'main dish', 'entrée', 'entree', 'main', 'principal dish', 'dinner', 'supper', 'family meal', 'centerpiece', 'roast', 'casserole', 'stew', 'curry', 'steak', 'chops', 'cutlet', 'stir-fry', 'pasta', 'noodles', 'savory pie', 'pot pie', 'shepherd\'s pie', 'platter', 'board', 'skillet meal', 'one-pot meal', 'one-pan meal', 'meatloaf', 'burger', 'sandwich', 'wrap', 'bowl', 'grain bowl', 'hearty soup', 'chowder', 'lasagna', 'enchiladas', 'fajitas', 'tacos', 'burrito', 'pizza', 'flatbread', 'gratin', 'roulade', 'meatballs', 'schnitzel', 'fish fillet', 'roast chicken', 'prime rib'],
+    "Side Dish": ['side dish', 'side', 'accompaniment', 'side order', 'on the side', 'complement', 'extra', 'garnish', 'salad', 'green salad', 'pasta salad', 'potato salad', 'coleslaw', 'slaw', 'vegetable', 'steamed vegetables', 'roasted vegetables', 'grilled vegetables', 'sautéed vegetables', 'glazed vegetables', 'creamed vegetables', 'potatoes', 'mashed potatoes', 'roasted potatoes', 'scalloped potatoes', 'au gratin', 'fries', 'french fries', 'rice', 'pilaf', 'fried rice', 'couscous', 'quinoa', 'grains', 'risotto', 'polenta', 'beans', 'baked beans', 'refried beans', 'lentils', 'dal', 'stuffing', 'dressing', 'relish', 'chutney', 'salsa', 'bread', 'dinner rolls', 'biscuits', 'cornbread', 'garlic bread'],
+    "Dessert": ['dessert', 'sweet', 'pudding', 'afters', 'confection', 'sweet treat', 'final course', 'cake', 'cupcake', 'cheesecake', 'lava cake', 'torte', 'pie', 'tart', 'cookies', 'brownies', 'blondies', 'bars', 'ice cream', 'gelato', 'sorbet', 'sherbet', 'frozen yogurt', 'mousse', 'custard', 'crème brûlée', 'panna cotta', 'cobbler', 'crumble', 'crisp', 'clafoutis', 'trifle', 'pastry', 'éclair', 'macaron', 'donut', 'fritter', 'fudge', 'candy', 'truffles', 'bonbon', 'fruit', 'fruit salad', 'parfait', 'sundae', 'semifreddo', 'soufflé', 'meringue'],
+    "Drink": ['drink', 'beverage', 'libation', 'refreshment', 'cocktail', 'mocktail', 'smoothie', 'shake', 'milkshake', 'juice', 'lemonade', 'limeade', 'ade', 'iced tea', 'sweet tea', 'coffee', 'latte', 'cappuccino', 'espresso', 'macchiato', 'mocha', 'cold brew', 'hot chocolate', 'cocoa', 'soda', 'pop', 'fizz', 'punch', 'spritzer', 'shrub', 'agua fresca', 'horchata', 'lassi', 'chai', 'kombucha', 'tisane', 'herbal tea', 'water', 'sparkling water', 'wine', 'red wine', 'white wine', 'rosé', 'beer', 'ale', 'lager', 'spirits', 'liquor', 'liqueur']
+}
+
 
 tags_to_insert = {
     "holiday": list(holiday_keywords.keys()),
     "diet": list(diet_keywords.keys()),
     "cuisine": list(cuisine_keywords.keys()),
-    "region": list(region_keywords.keys())
+    "region": list(region_keywords.keys()),
+    "course": list(course_keywords.keys())
 }
 
 
@@ -296,6 +221,7 @@ def bulk_insert_keywords():
             ("cuisine", cuisine_keywords),
             ("diet", diet_keywords),
             ("region", region_keywords),
+            ("course", course_keywords)
         ]:
             for tag_name, keywords in tag_dict.items():
                 tag_id = tag_lookup.get(tag_type, {}).get(tag_name)
