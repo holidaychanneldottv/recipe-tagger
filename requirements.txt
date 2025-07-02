@@ -4,3 +4,4 @@ python-dotenv
 fastapi
 uvicorn
 mangum
+pydantic==1.10.13
