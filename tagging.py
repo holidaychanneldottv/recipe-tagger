@@ -17,13 +17,6 @@ print("Database URL:", DATABASE_URL)
 DB_NAME = os.getenv("DB_NAME")
 engine = create_engine(DATABASE_URL, poolclass=NullPool)
 
-# @event.listens_for(engine, "connect")
-# def set_search_path(dbapi_connection, connection_record):
-#     cursor = dbapi_connection.cursor()
-#     cursor.execute(f'SET search_path TO {DB_NAME}')
-#     cursor.execute("SET statement_timeout TO 900000")
-#     cursor.close()
-# engine = create_engine(DATABASE_URL)
 
 # Tag - tag key words mapping
 
