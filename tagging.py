@@ -26,7 +26,6 @@ socket.getaddrinfo = getaddrinfo_ipv4_only
 load_dotenv()
 
 DATABASE_URL = os.getenv("POSTGRES_URL")
-print("Database URL:", DATABASE_URL)
 DB_NAME = os.getenv("DB_NAME")
 engine = create_engine(DATABASE_URL, poolclass=NullPool)
 

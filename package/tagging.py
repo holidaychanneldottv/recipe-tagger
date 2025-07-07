@@ -1,7 +1,7 @@
 import os
 import socket
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, text, event
+from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
 from collections import defaultdict
 from keywords import (
