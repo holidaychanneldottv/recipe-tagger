@@ -1,7 +1,8 @@
 import os
 import socket
+import re
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, event
 from sqlalchemy.pool import NullPool
 from collections import defaultdict
 from keywords import (
@@ -26,10 +27,9 @@ socket.getaddrinfo = getaddrinfo_ipv4_only
 load_dotenv()
 
 DATABASE_URL = os.getenv("POSTGRES_URL")
-print("Database URL:", DATABASE_URL)
 DB_NAME = os.getenv("DB_NAME")
 engine = create_engine(DATABASE_URL, poolclass=NullPool)
-
+print("Database URL:", DATABASE_URL)
 
 # Tag - tag key words mapping
 
@@ -173,9 +173,12 @@ def auto_tag_recipes():
         bulk_insert_list = []
 
         for recipe in recipes:
+
             content = f"{recipe['recipe_name']} {recipe['instructions']}".lower()
+            words = set(re.findall(r'\b\w+\b', content))
+
             for tag_id, keywords in tag_map.items():
-                if any(kw in content for kw in keywords):
+                if any(kw.lower() in words for kw in keywords):
                     bulk_insert_list.append({"rid": recipe["recipe_id"], "tid": tag_id})
 
         if bulk_insert_list:
@@ -185,7 +188,7 @@ def auto_tag_recipes():
                     INSERT INTO {DB_NAME}.recipe_tags_mapping (recipe_id, tag_id)
                     VALUES (:rid, :tid)
                     ON CONFLICT DO NOTHING
-                """
+                    """
                 ),
                 bulk_insert_list,
             )
