@@ -1,8 +1,8 @@
 import os
-import socket
 import re
+import time
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, text, event
+from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
 from collections import defaultdict
 from keywords import (
@@ -13,16 +13,6 @@ from keywords import (
     course_keywords,
 )
 
-orig_getaddrinfo = socket.getaddrinfo
-
-
-def getaddrinfo_ipv4_only(*args, **kwargs):
-    return [
-        info for info in orig_getaddrinfo(*args, **kwargs) if info[0] == socket.AF_INET
-    ]
-
-
-socket.getaddrinfo = getaddrinfo_ipv4_only
 
 load_dotenv()
 
@@ -79,9 +69,13 @@ def get_all_tag_ids(conn):
 
 
 def bulk_insert_keywords():
+    
     print("Inserting tags into tags table...")
+
     bulk_insert_tags()
+
     print("Inserting keywords into tag_keywords...")
+
     with engine.begin() as conn:
         tag_lookup = get_all_tag_ids(conn)
 
@@ -165,7 +159,7 @@ def tag_recipe(conn, recipe_id, tag_id):
 
 
 def auto_tag_recipes():
-    print("Auto-tagging recipes based on keywords...")
+    print("Auto-tagging recipes based on keywords")
     with engine.begin() as conn:
         tag_map = fetch_all_tag_keywords(conn)
         recipes = fetch_all_recipes(conn)
@@ -216,3 +210,31 @@ def tag_recipe_by_id(recipe_id):
             if any(kw in content for kw in keywords):
                 tag_recipe(conn, recipe_id, tag_id)
     print(f"Recipe {recipe_id} auto-tagged based on keywords.")
+
+
+
+
+
+
+# def auto_tag_recipes():
+#     print("Auto-tagging recipes based on keywords")
+#     with engine.begin() as conn:
+#         startTime = time.time()
+#         conn.execute(
+#             text(f"""
+#                 INSERT INTO {DB_NAME}.recipe_tags_mapping (recipe_id, tag_id)
+#                 SELECT
+#                     r.recipe_id,
+#                     k.tag_id
+#                 FROM
+#                     {DB_NAME}.recipe r
+#                 JOIN
+#                     {DB_NAME}.tag_keywords k
+#                 ON
+#                     lower(r.recipe_name || ' ' || r.instructions) ~* ('\\m' || lower(k.keyword) || '\\M')
+#                 ON CONFLICT DO NOTHING;
+#             """)
+#         )
+#         endTime = time.time()
+#         print(f"Auto-tagged recipes in {endTime - startTime:.2f} seconds.")
+#     print("Recipes auto-tagged based on keywords.")
