@@ -1,11 +1,16 @@
 from fastapi import FastAPI, BackgroundTasks
-from tagging import auto_tag_recipes, tag_recipe_by_id, bulk_insert_keywords
+from tagging import auto_tag_recipes, tag_recipe_by_id, bulk_insert_keywords, bulk_insert_tags
 
 app = FastAPI()
 
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the Recipe Tagging API"}
+
+@app.get("/upsert-tags")
+def upsert_tags(background_tasks: BackgroundTasks):
+    background_tasks.add_task(bulk_insert_tags)
+    return {"status": "Tag insertion started in the background"}
 
 @app.get("/upsert-keywords")
 def upsert_keywords(background_tasks: BackgroundTasks):
