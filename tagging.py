@@ -12,8 +12,6 @@ from keywords import (
     region_keywords,
     course_keywords,
 )
-
-
 load_dotenv()
 
 DATABASE_URL = os.getenv("POSTGRES_URL")
@@ -21,43 +19,13 @@ DB_NAME = os.getenv("DB_NAME")
 engine = create_engine(DATABASE_URL, poolclass=NullPool)
 print("Database URL:", DATABASE_URL)
 
-# Tag - tag key words mapping
 
+def fetch_all_recipes(conn):
+    result = conn.execute(
+        text(f"SELECT recipe_id, recipe_name, instructions FROM {DB_NAME}.recipe")
+    ).mappings()
+    return result.fetchall()
 
-tags_to_insert = {
-    "holiday": list(holiday_keywords.keys()),
-    "diet": list(diet_keywords.keys()),
-    "cuisine": list(cuisine_keywords.keys()),
-    "region": list(region_keywords.keys()),
-    "course": list(course_keywords.keys()),
-}
-
-
-# insert tags into the database
-def bulk_insert_tags():
-    with engine.begin() as conn:
-        inserts = []
-
-        for tag_type, tag_names in tags_to_insert.items():
-            for name in tag_names:
-                inserts.append({"name": name, "type": tag_type})
-
-        if inserts:
-            conn.execute(
-                text(
-                    f"""
-                    INSERT INTO {DB_NAME}.tags (tag_name, tag_type)
-                    VALUES (:name, :type)
-                    ON CONFLICT DO NOTHING
-                """
-                ),
-                inserts,
-            )
-
-    print("Tags inserted into tags table.")
-
-
-# insert keywords into tag_keywords table
 def get_all_tag_ids(conn):
     tag_ids = conn.execute(
         text(f"SELECT tag_id, tag_name, tag_type FROM {DB_NAME}.tags")
@@ -66,53 +34,6 @@ def get_all_tag_ids(conn):
     for row in tag_ids:
         tag_lookup[row["tag_type"]][row["tag_name"]] = row["tag_id"]
     return tag_lookup
-
-
-def bulk_insert_keywords():
-    
-    print("Inserting tags into tags table...")
-
-    bulk_insert_tags()
-
-    print("Inserting keywords into tag_keywords...")
-
-    with engine.begin() as conn:
-        tag_lookup = get_all_tag_ids(conn)
-
-        inserts = []
-
-        for tag_type, tag_dict in [
-            ("holiday", holiday_keywords),
-            ("cuisine", cuisine_keywords),
-            ("diet", diet_keywords),
-            ("region", region_keywords),
-            ("course", course_keywords),
-        ]:
-            for tag_name, keywords in tag_dict.items():
-                tag_id = tag_lookup.get(tag_type, {}).get(tag_name)
-                if not tag_id:
-                    print(
-                        f"Tag '{tag_name}' with type '{tag_type}' not found in tags table."
-                    )
-                    continue
-
-                for keyword in keywords:
-                    inserts.append({"tag_id": tag_id, "keyword": keyword})
-
-        if inserts:
-            conn.execute(
-                text(
-                    f"""
-                    INSERT INTO {DB_NAME}.tag_keywords (tag_id, keyword)
-                    VALUES (:tag_id, :keyword)
-                    ON CONFLICT DO NOTHING
-                """
-                ),
-                inserts,
-            )
-
-    print("Keywords inserted into tag_keywords.")
-
 
 def fetch_all_tag_keywords(conn):
     result = conn.execute(
@@ -129,14 +50,101 @@ def fetch_all_tag_keywords(conn):
 
     return tag_map
 
-
-def fetch_all_recipes(conn):
-    result = conn.execute(
-        text(f"SELECT recipe_id, recipe_name, instructions FROM {DB_NAME}.recipe")
-    ).mappings()
-    return result.fetchall()
+# Tag - tag key words mapping
 
 
+tags_to_insert = {
+    "holiday": list(holiday_keywords.keys()),
+    "diet": list(diet_keywords.keys()),
+    "cuisine": list(cuisine_keywords.keys()),
+    "region": list(region_keywords.keys()),
+    "course": list(course_keywords.keys()),
+}
+
+
+# insert tags into the database
+def bulk_insert_tags():
+    print("Inserting tags into tags table...")
+    values = []
+    for tag_type, tag_names in tags_to_insert.items():
+        for name in tag_names:
+            safe_name = name.replace("'", "''")
+            safe_type = tag_type.replace("'", "''")
+            values.append(f"('{safe_name}', '{safe_type}')")
+
+    if values:
+        sql = f"""
+            INSERT INTO {DB_NAME}.tags (tag_name, tag_type)
+            VALUES {', '.join(values)}
+            ON CONFLICT DO NOTHING;
+        """
+        with engine.begin() as conn:
+            conn.execute(text(sql))
+
+    print("Tags inserted into tags table.")
+
+
+# insert keywords into tag_keywords table
+def bulk_insert_keywords():
+    print("Inserting keywords into tag_keywords...")
+    with engine.begin() as conn:
+        tag_lookup = get_all_tag_ids(conn)
+
+        values = []
+
+        for tag_type, tag_dict in [
+            ("holiday", holiday_keywords),
+            ("cuisine", cuisine_keywords),
+            ("diet", diet_keywords),
+            ("region", region_keywords),
+            ("course", course_keywords),
+        ]:
+            for tag_name, keywords in tag_dict.items():
+                tag_id = tag_lookup.get(tag_type, {}).get(tag_name)
+                if not tag_id:
+                    print(f"Tag '{tag_name}' with type '{tag_type}' not found in tags table.")
+                    continue
+
+                for keyword in keywords:
+                    # Properly escape single quotes
+                    safe_keyword = keyword.replace("'", "''")
+                    values.append(f"({tag_id}, '{safe_keyword}')")
+
+        if values:
+            sql = f"""
+                INSERT INTO {DB_NAME}.tag_keywords (tag_id, keyword)
+                VALUES {', '.join(values)}
+                ON CONFLICT DO NOTHING;
+            """
+            conn.execute(text(sql))
+
+    print("Keywords inserted into tag_keywords.")
+
+# tag all recipes based on keywords
+def auto_tag_recipes():
+    print("Auto-tagging recipes based on keywords")
+    with engine.begin() as conn:
+        startTime = time.time()
+        conn.execute(
+            text(f"""
+                INSERT INTO {DB_NAME}.recipe_tags_mapping (recipe_id, tag_id)
+                SELECT
+                    r.recipe_id,
+                    k.tag_id
+                FROM
+                    {DB_NAME}.recipe r
+                JOIN
+                    {DB_NAME}.tag_keywords k
+                ON
+                    lower(r.recipe_name || ' ' || r.instructions) ~* ('\\m' || lower(k.keyword) || '\\M')
+                ON CONFLICT DO NOTHING;
+            """)
+        )
+        endTime = time.time()
+        print(f"Auto-tagged recipes in {endTime - startTime:.2f} seconds.")
+    print("Recipes auto-tagged based on keywords.")
+
+# tag a specific recipe by ID based on keywords
 def tag_recipe(conn, recipe_id, tag_id):
     exists = conn.execute(
         text(
@@ -156,38 +164,6 @@ def tag_recipe(conn, recipe_id, tag_id):
             ),
             {"rid": recipe_id, "tid": tag_id},
         )
-
-
-def auto_tag_recipes():
-    print("Auto-tagging recipes based on keywords")
-    with engine.begin() as conn:
-        tag_map = fetch_all_tag_keywords(conn)
-        recipes = fetch_all_recipes(conn)
-
-        bulk_insert_list = []
-
-        for recipe in recipes:
-
-            content = f"{recipe['recipe_name']} {recipe['instructions']}".lower()
-            words = set(re.findall(r'\b\w+\b', content))
-
-            for tag_id, keywords in tag_map.items():
-                if any(kw.lower() in words for kw in keywords):
-                    bulk_insert_list.append({"rid": recipe["recipe_id"], "tid": tag_id})
-
-        if bulk_insert_list:
-            conn.execute(
-                text(
-                    f"""
-                    INSERT INTO {DB_NAME}.recipe_tags_mapping (recipe_id, tag_id)
-                    VALUES (:rid, :tid)
-                    ON CONFLICT DO NOTHING
-                    """
-                ),
-                bulk_insert_list,
-            )
-
-    print("Recipes auto-tagged based on keywords.")
 
 
 def tag_recipe_by_id(recipe_id):
@@ -211,30 +187,4 @@ def tag_recipe_by_id(recipe_id):
                 tag_recipe(conn, recipe_id, tag_id)
     print(f"Recipe {recipe_id} auto-tagged based on keywords.")
 
-
-
-
-
-
-# def auto_tag_recipes():
-#     print("Auto-tagging recipes based on keywords")
-#     with engine.begin() as conn:
-#         startTime = time.time()
-#         conn.execute(
-#             text(f"""
-#                 INSERT INTO {DB_NAME}.recipe_tags_mapping (recipe_id, tag_id)
-#                 SELECT
-#                     r.recipe_id,
-#                     k.tag_id
-#                 FROM
-#                     {DB_NAME}.recipe r
-#                 JOIN
-#                     {DB_NAME}.tag_keywords k
-#                 ON
-#                     lower(r.recipe_name || ' ' || r.instructions) ~* ('\\m' || lower(k.keyword) || '\\M')
-#                 ON CONFLICT DO NOTHING;
-#             """)
-#         )
-#         endTime = time.time()
-#         print(f"Auto-tagged recipes in {endTime - startTime:.2f} seconds.")
-#     print("Recipes auto-tagged based on keywords.")
+# 85198
