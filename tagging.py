@@ -1,5 +1,4 @@
 import os
-import re
 import time
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
@@ -136,7 +135,7 @@ def auto_tag_recipes():
                 JOIN
                     {DB_NAME}.tag_keywords k
                 ON
-                    lower(r.recipe_name || ' ' || r.instructions) ~* ('\\m' || lower(k.keyword) || '\\M')
+                    lower(r.recipe_name) ~* ('\\m' || lower(k.keyword) || '\\M')
                 ON CONFLICT DO NOTHING;
             """)
         )
@@ -171,7 +170,7 @@ def tag_recipe_by_id(recipe_id):
         tag_map = fetch_all_tag_keywords(conn)
         recipe = conn.execute(
             text(
-                f"SELECT recipe_name, instructions FROM {DB_NAME}.recipe WHERE recipe_id = :rid"
+                f"SELECT recipe_name FROM {DB_NAME}.recipe WHERE recipe_id = :rid"
             ),
             {"rid": recipe_id},
         ).fetchone()
@@ -180,7 +179,7 @@ def tag_recipe_by_id(recipe_id):
             print(f"Recipe with ID {recipe_id} not found.")
             return
 
-        content = f"{recipe['recipe_name']} {recipe['instructions']}".lower()
+        content = f"{recipe['recipe_name']}".lower()
 
         for tag_id, keywords in tag_map.items():
             if any(kw in content for kw in keywords):
