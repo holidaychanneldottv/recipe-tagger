@@ -124,6 +124,7 @@ def auto_tag_recipes():
     print("Auto-tagging recipes based on keywords")
     with engine.begin() as conn:
         startTime = time.time()
+        conn.execute(text("SET statement_timeout TO '1200000';"))
         conn.execute(
             text(f"""
                 INSERT INTO {DB_NAME}.recipe_tags_mapping (recipe_id, tag_id)
